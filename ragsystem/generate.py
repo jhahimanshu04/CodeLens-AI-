@@ -8,8 +8,9 @@ load_dotenv()
 api_key = os.getenv("GOOGLE_API_KEY")
 client = genai.Client(api_key=api_key)
 
-chroma_client = chromadb.Client()
-collection = chroma_client.create_collection(name="codebase_chunks")
+chroma_client = chromadb.PersistentClient(path="./chroma_db")
+collection = chroma_client.get_or_create_collection(name="codebase_chunks")
+print(f"Connected to existing collection with {collection.count()} chunks.\n")
 
 # --- rebuild and store all chunks, same as before ---
 target_folder = r"C:\Users\hjha6\Desktop\Rag chatboat system\ragsystem"
