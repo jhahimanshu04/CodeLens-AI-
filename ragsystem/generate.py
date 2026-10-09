@@ -40,5 +40,17 @@ question = "How does the code send a message to Gemini?"
 results = retrieve(question, k=3)
 prompt = build_prompt(question, results["documents"][0])
 
-print("=== ASSEMBLED PROMPT ===\n")
-print(prompt)
+response = client.models.generate_content(
+    model="gemini-3.5-flash",  # a chat model we already know works on your account from Day 1
+    contents=prompt            # the full prompt: instructions + retrieved chunks + question
+)
+
+print("=== QUESTION ===")
+print(question)  # we print the question again so the answer below is easy to match to it
+
+print("\n=== ANSWER ===")
+print(response.text)  # the text Gemini wrote, based only on the context we gave it
+
+print("\n=== SOURCES USED ===")
+for meta in results["metadatas"][0]:  # these are the files the retrieved chunks came from
+    print("-", meta["source"])  # 
