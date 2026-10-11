@@ -41,7 +41,7 @@ results = retrieve(question, k=3)
 prompt = build_prompt(question, results["documents"][0])
 
 response = client.models.generate_content(
-    model="gemini-3.5-flash",  # a chat model we already know works on your account from Day 1
+    model="gemini-3.8-flash",  # a chat model we already know works on your account from Day 1
     contents=prompt            # the full prompt: instructions + retrieved chunks + question
 )
 
