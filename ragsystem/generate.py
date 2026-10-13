@@ -3,27 +3,25 @@ from dotenv import load_dotenv
 from google import genai
 import chromadb
 
-load_dotenv()
-api_key = os.getenv("GOOGLE_API_KEY")
-client = genai.Client(api_key=api_key)
+load_dotenv()  # we load the key first, because every API call below needs it
+client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
 
-# we connect to the saved database from setup_db.py, so no re-embedding is needed
+# we open the saved database, so no re-embedding is needed
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
 collection = chroma_client.get_or_create_collection(name="codebase_chunks")
-print(f"Connected to existing collection with {collection.count()} chunks.\n")
 
-def retrieve(question, k=5):
-    # we embed the question the same way we embedded the chunks, so they can be compared
-    q_result = client.models.embed_content(model="gemini-embedding-001", contents=question)
-    q_vector = q_result.embeddings[0].values
-    return collection.query(query_embeddings=[q_vector], n_results=k)
+# <-- CHANGE THIS NUMBER to the midpoint you calculated from your two Distances lines
+DISTANCE_CUTOFF = 0.70
 
-def build_prompt(question, retrieved_chunks):
-    # we join the retrieved chunks into one block, so the model sees them as a single "context"
-    context = "\n\n---\n\n".join(retrieved_chunks)
+def retrieve(question, k=3):
+    # we embed the question the same way as the chunks, so the two can be compared
+    q = client.models.embed_content(model="gemini-embedding-001", contents=question)
+    return collection.query(query_embeddings=[q.embeddings[0].values], n_results=k)
 
-    # this template tells Gemini HOW to use the context, and what to say if the context isn't enough
-    prompt = f"""You are a helpful assistant answering questions about a codebase.
+def build_prompt(question, chunks):
+    # we join the chunks into one block, so the model sees them as a single "context"
+    context = "\n\n---\n\n".join(chunks)
+    return f"""You are a helpful assistant answering questions about a codebase.
 Use ONLY the context below to answer the question. If the context doesn't contain
 enough information to answer, say "I don't have enough information in this codebase to answer that."
 
@@ -33,24 +31,22 @@ Context:
 Question: {question}
 
 Answer:"""
-    return prompt
 
-# we test with ONE question and only PRINT the prompt, with no generation call yet
-question = "How does the code send a message to Gemini?"
-results = retrieve(question, k=3)
-prompt = build_prompt(question, results["documents"][0])
+def answer(question):
+    results = retrieve(question)
+    best_distance = results["distances"][0][0]  # the closest chunk is first, and it decides if we have a real match
+    print(f"(best distance: {round(best_distance, 3)})")  # we print it so you can tune the cutoff later
 
-response = client.models.generate_content(
-    model="gemini-3.8-flash",  # a chat model we already know works on your account from Day 1
-    contents=prompt            # the full prompt: instructions + retrieved chunks + question
-)
+    # the fallback: if even the closest chunk is too far away, we skip Gemini entirely,
+    # which stops made-up answers and also saves an API call
+    if best_distance > DISTANCE_CUTOFF:
+        return "I don't have enough information in this codebase to answer that."
 
-print("=== QUESTION ===")
-print(question)  # we print the question again so the answer below is easy to match to it
+    prompt = build_prompt(question, results["documents"][0])
+    response = client.models.generate_content(model="gemini-3.8-flash", contents=prompt)
+    return response.text
 
-print("\n=== ANSWER ===")
-print(response.text)  # the text Gemini wrote, based only on the context we gave it
-
-print("\n=== SOURCES USED ===")
-for meta in results["metadatas"][0]:  # these are the files the retrieved chunks came from
-    print("-", meta["source"])  # 
+# one question the repo answers and one it can't, so we see both paths work
+for q in ["How does the code send a message to Gemini?", "What is the capital of France?"]:
+    print(f"\nQuestion: {q}")
+    print("Answer:", answer(q))
