@@ -7,7 +7,7 @@ with open("test_gemini.py", "r", encoding="utf-8") as f:
 # we create the splitter with specific settings so chunks are a manageable, consistent size
 splitter = RecursiveCharacterTextSplitter(
     chunk_size=200,      # max characters per chunk — small on purpose so we can actually see multiple chunks from one small file
-    chunk_overlap=20      # a little overlap between chunks so context isn't abruptly cut off at chunk boundaries
+    chunk_overlap=30      # a little overlap between chunks so context isn't abruptly cut off at chunk boundaries
 )
 
 chunks = splitter.split_text(text)  # actually splits our file's text into a list of smaller text pieces
